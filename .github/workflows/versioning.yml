@@ -158,7 +158,8 @@ jobs:
             GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
             service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
             if [ "${GITVERSION_TAG_PROPERTY}" != ".MajorMinorPatch" ]; then
-              previous_commit_count=$(git tag -l | grep "^${svc_without_prefix}/v$(echo "${gitversion_calc}" | jq -r ".MajorMinorPatch")-$(echo "${gitversion_calc}" | jq -r ".PreReleaseLabel")" | grep -o -E '\.[0-9]+$' | grep -o -E '[0-9]+$' | sort -nr | head -1)
+              svc_without_prefix='v'
+              previous_commit_count=$(git tag -l | grep "^${svc_without_prefix}$(echo "${gitversion_calc}" | jq -r ".MajorMinorPatch")-$(echo "${gitversion_calc}" | jq -r ".PreReleaseLabel")" | grep -o -E '\.[0-9]+$' | grep -o -E '[0-9]+$' | sort -nr | head -1)
               next_commit_count=$((previous_commit_count+1))
               major_minor_patch_version=$(echo "${gitversion_calc}" | jq -r ".MajorMinorPatch")
               full_service_version="${major_minor_patch_version}.${next_commit_count}"
@@ -185,7 +186,7 @@ jobs:
             else
               full_service_version="${service_version}"
             fi
-            svc_without_prefix=$(echo "${svc}" | sed "s|^apps/||")
+            svc_without_prefix="$(echo "${svc}" | sed "s|^apps/||")/v"
             git tag -a "${svc_without_prefix}/v${full_service_version}" -m "${svc_without_prefix}/v${full_service_version}"
             git push origin "${svc_without_prefix}/v${full_service_version}"
           done
