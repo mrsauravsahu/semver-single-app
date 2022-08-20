@@ -64,10 +64,20 @@ jobs:
         if [ "$(echo "${DIFF_DEST}" | grep -o '^hotfix/')" = "hotfix/" ]; then
           DIFF_SOURCE="main"
         fi
+        echo "::set-output name=diff_source::$DIFF_SOURCE"
+        echo "::set-output name=diff_dest::$DIFF_DEST"
+        echo "DIFF_SOURCE='$DIFF_SOURCE'"
+        echo "DIFF_DEST='$DIFF_DEST'"
 
         # service change calculation with diff - ideally use something like 'plz' or 'bazel'
-        if [ "${GITVERSION_REPO_TYPE}" = 'SINGLE_APP' ] && [ `git diff "${DIFF_SOURCE}" "${DIFF_DEST}" --name-only | grep -o '^src/' | sort | uniq` = 'src/' ]; then
-          changed=true
+        if [ "${GITVERSION_REPO_TYPE}" = 'SINGLE_APP' ]; then
+          if [ `git diff "${DIFF_SOURCE}" "${DIFF_DEST}" --name-only | grep -o '^src/' | sort | uniq` = 'src/' ]; then
+            changed=true
+          else
+            changed=false
+          fi
+          echo "changed='${changed}'"
+          echo "::set-output name=changed::$changed"
         else
           if [ "$(git diff "${DIFF_SOURCE}" "${DIFF_DEST}" --name-only | grep -o '^common/' > /dev/null && echo 'common changed')" = 'common changed' ]; then
             changed_services=`ls -1 apps | xargs -n 1 printf 'apps/%s\n'`
@@ -76,10 +86,6 @@ jobs:
           fi
           changed_services=$(printf '%s' "$changed_services" | jq --raw-input --slurp '.')
           echo "::set-output name=changed_services::$changed_services"
-          echo "::set-output name=diff_source::$DIFF_SOURCE"
-          echo "::set-output name=diff_dest::$DIFF_DEST"
-          echo "DIFF_SOURCE='$DIFF_SOURCE'"
-          echo "DIFF_DEST='$DIFF_DEST'"
           echo "changed_services='$(echo "$changed_services" | sed 'N;s/\n/, /g')'"
         fi
 
@@ -88,29 +94,33 @@ jobs:
       run: |
         service_versions_txt='version bump'
         if [ "${GITVERSION_REPO_TYPE}" = 'SINGLE_APP' ]; then
-          docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml"
-          gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml")
-          GITVERSION_TAG_PROPERTY_NAME="GITVERSION_TAG_PROPERTY_PULL_REQUESTS"
-          GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
-          service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
-          service_versions_txt+="v${service_version}\n"
-          exit 0
-        fi
-        service_versions_txt='## impact surface'
-        changed_services=( ${{ fromJSON(steps.calculate_changed_services.outputs.changed_services) }} )
-        if [ "${#changed_services[@]}" = "0" ]; then
-          service_versions_txt+='\nNo services changed\n'
-        else
-          service_versions_txt="## impact surface\n"
-          for svc in "${changed_services[@]}"; do
-            echo "calculation for ${svc}"
-            docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/${svc}/.gitversion.yml"
-            gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/${svc}/.gitversion.yml")
+          if [ "${{ fromJSON(steps.calculate_changed_services.outputs.changed) }}" = 'true' ]; then
+            docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml"
+            gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml")
             GITVERSION_TAG_PROPERTY_NAME="GITVERSION_TAG_PROPERTY_PULL_REQUESTS"
             GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
             service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
-            service_versions_txt+="- ${svc} - v${service_version}\n"
-          done
+            service_versions_txt+="v${service_version}\n"
+          else
+            service_versions_txt+='\nNo version bump required\n'
+          fi
+        else
+          service_versions_txt='## impact surface'
+          changed_services=( ${{ fromJSON(steps.calculate_changed_services.outputs.changed_services) }} )
+          if [ "${#changed_services[@]}" = "0" ]; then
+            service_versions_txt+='\nNo services changed\n'
+          else
+            service_versions_txt="## impact surface\n"
+            for svc in "${changed_services[@]}"; do
+              echo "calculation for ${svc}"
+              docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/${svc}/.gitversion.yml"
+              gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/${svc}/.gitversion.yml")
+              GITVERSION_TAG_PROPERTY_NAME="GITVERSION_TAG_PROPERTY_PULL_REQUESTS"
+              GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
+              service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
+              service_versions_txt+="- ${svc} - v${service_version}\n"
+            done
+          fi
         fi
         # fix multiline variables
         # from: https://github.com/actions/create-release/issues/64#issuecomment-638695206
@@ -137,24 +147,26 @@ jobs:
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
         git config --global user.name 'github-actions'
         if [ "${GITVERSION_REPO_TYPE}" = 'SINGLE_APP' ]; then
-          docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml"
-          gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml")
-          GITVERSION_TAG_PROPERTY_NAME="GITVERSION_TAG_PROPERTY_PULL_REQUESTS"
-          GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
-          service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
-          git tag -a "v${service_version}" -m "v${service_version}"
-          git push origin "${svc_without_prefix}/v${service_version}"
-          exit 0
+          if [ "${{ fromJSON(steps.calculate_changed_services.outputs.changed_services) }}" = 'true' ]; then
+            docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml"
+            gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml")
+            GITVERSION_TAG_PROPERTY_NAME="GITVERSION_TAG_PROPERTY_PULL_REQUESTS"
+            GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
+            service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
+            git tag -a "v${service_version}" -m "v${service_version}"
+            git push origin "${svc_without_prefix}/v${service_version}"
+          fi
+        else
+          changed_services=( ${{ fromJSON(steps.calculate_changed_services.outputs.changed_services) }} )
+          for svc in "${changed_services[@]}"; do
+            echo "calculation for ${svc}"
+            docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/${svc}/.gitversion.yml"
+            gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/${svc}/.gitversion.yml")
+            GITVERSION_TAG_PROPERTY_NAME="GITVERSION_TAG_PROPERTY_$(echo '${{ steps.calculate_changed_services.outputs.diff_dest }}' | sed 's|/.*$||' | tr '[[:lower:]]' '[[:upper:]]')"
+            GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
+            service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
+            svc_without_prefix=$(echo "${svc}" | sed "s|^apps/||")
+            git tag -a "${svc_without_prefix}/v${service_version}" -m "${svc_without_prefix}/v${service_version}"
+            git push origin "${svc_without_prefix}/v${service_version}"
+          done
         fi
-        changed_services=( ${{ fromJSON(steps.calculate_changed_services.outputs.changed_services) }} )
-        for svc in "${changed_services[@]}"; do
-          echo "calculation for ${svc}"
-          docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/${svc}/.gitversion.yml"
-          gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/${svc}/.gitversion.yml")
-          GITVERSION_TAG_PROPERTY_NAME="GITVERSION_TAG_PROPERTY_$(echo '${{ steps.calculate_changed_services.outputs.diff_dest }}' | sed 's|/.*$||' | tr '[[:lower:]]' '[[:upper:]]')"
-          GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
-          service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
-          svc_without_prefix=$(echo "${svc}" | sed "s|^apps/||")
-          git tag -a "${svc_without_prefix}/v${service_version}" -m "${svc_without_prefix}/v${service_version}"
-          git push origin "${svc_without_prefix}/v${service_version}"
-        done
