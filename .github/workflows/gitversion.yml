@@ -86,8 +86,8 @@ jobs:
       run: |
         service_versions_txt='version bump'
         if [ "${GITVERSION_REPO_TYPE}" == 'SINGLE_APP' ]; then
-          docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.gitversion.yml"
-          gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.gitversion.yml")
+          docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml"
+          gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml")
           GITVERSION_TAG_PROPERTY_NAME="GITVERSION_TAG_PROPERTY_PULL_REQUESTS"
           GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
           service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
@@ -135,8 +135,8 @@ jobs:
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
         git config --global user.name 'github-actions'
         if [ "${GITVERSION_REPO_TYPE}" == 'SINGLE_APP' ]; then
-          docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.gitversion.yml"
-          gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.gitversion.yml")
+          docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml"
+          gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml")
           GITVERSION_TAG_PROPERTY_NAME="GITVERSION_TAG_PROPERTY_PULL_REQUESTS"
           GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
           service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
