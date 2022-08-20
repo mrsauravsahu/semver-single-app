@@ -92,8 +92,8 @@ jobs:
     - name: Calculate service versions
       id: calculate_service_versions
       run: |
-        service_versions_txt='version bump'
         if [ "${GITVERSION_REPO_TYPE}" = 'SINGLE_APP' ]; then
+          service_versions_txt='## version bump'
           if [ "${{ steps.calculate_changed_services.outputs.changed }}" = 'true' ]; then
             docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml"
             gitversion_calc=$(docker run --rm -v "$(pwd):/repo" ${GITVERSION} /repo /config "/repo/.cicd/common/.gitversion.yml")
