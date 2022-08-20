@@ -1,0 +1,23 @@
+{
+  "name": "semver-single-app",
+  "version": "0.2.0",
+  "description": "a single app repo to help with automating versioning",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo 'no tests yet lel'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrsauravsahu/semver-single-app.git"
+  },
+  "keywords": [
+    "gitversion",
+    "node"
+  ],
+  "author": "Saurav Sahu <mrsauravsahu@outlook.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mrsauravsahu/semver-single-app/issues"
+  },
+  "homepage": "https://github.com/mrsauravsahu/semver-single-app#readme"
+}
