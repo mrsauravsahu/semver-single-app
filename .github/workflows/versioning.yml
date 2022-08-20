@@ -158,7 +158,7 @@ jobs:
             GITVERSION_TAG_PROPERTY=${!GITVERSION_TAG_PROPERTY_NAME}
             service_version=$(echo "${gitversion_calc}" | jq -r "[${GITVERSION_TAG_PROPERTY}] | join(\"\")")
             git tag -a "v${service_version}" -m "v${service_version}"
-            git push origin "${svc_without_prefix}/v${service_version}"
+            git push origin "v${service_version}"
           fi
         else
           changed_services=( ${{ fromJSON(steps.calculate_changed_services.outputs.changed_services) }} )
